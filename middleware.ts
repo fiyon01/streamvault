@@ -22,11 +22,13 @@ export async function middleware(request: NextRequest) {
             value,
             ...options,
           });
+
           response = NextResponse.next({
             request: {
               headers: request.headers,
             },
           });
+
           response.cookies.set({
             name,
             value,
@@ -39,11 +41,13 @@ export async function middleware(request: NextRequest) {
             value: '',
             ...options,
           });
+
           response = NextResponse.next({
             request: {
               headers: request.headers,
             },
           });
+
           response.cookies.set({
             name,
             value: '',
@@ -58,17 +62,23 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAuthRoute = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/signup');
-  const isPublicRoute = request.nextUrl.pathname === '/';
-  
-  // Need to protect all / (dashboard, movies, etc) EXCEPT the public landing page and auth routes
+  const pathname = request.nextUrl.pathname;
+
+  const isAuthRoute =
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/signup');
+
+  const isPublicRoute =
+    pathname === '/' ||
+    pathname === '/googleff68c5035199312f.html';
+
+  // Redirect unauthenticated users away from protected routes
   if (!user && !isAuthRoute && !isPublicRoute) {
-    // Redirect to login if unauthenticated and trying to access protected route
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
+  // Redirect authenticated users away from auth pages
   if (user && isAuthRoute) {
-    // Redirect to dashboard if authenticated and trying to access auth routes
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
@@ -77,14 +87,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico, icon-*.png (favicon + PWA icons)
-     * - manifest.json (PWA manifest)
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico|icon-.*\\.png|manifest\\.json).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|icon-.*\\.png|manifest\\.json|googleff68c5035199312f\\.html).*)',
   ],
 };
