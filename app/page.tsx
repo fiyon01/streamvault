@@ -71,6 +71,20 @@ export default async function LandingPage() {
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#050506] text-white">
+      <style>{`
+        @keyframes svDrift {
+          0% { transform: translate3d(0,0,0); }
+          100% { transform: translate3d(-50%,0,0); }
+        }
+        @keyframes svRise {
+          0%, 100% { transform: translateY(0); opacity: .78; }
+          50% { transform: translateY(-10px); opacity: 1; }
+        }
+        @media (prefers-reduced-motion: no-preference) {
+          .sv-poster-strip { animation: svDrift 34s linear infinite; }
+          .sv-float { animation: svRise 4.8s ease-in-out infinite; }
+        }
+      `}</style>
       <section className="relative min-h-[92svh] overflow-hidden border-b border-white/10">
         <Image
           src={heroBackdrop}
@@ -99,6 +113,8 @@ export default async function LandingPage() {
             <Link href="/oneshot" className="transition hover:text-white">One Shot</Link>
             <Link href="/cartoons" className="transition hover:text-white">Animation</Link>
             <Link href="/anime" className="transition hover:text-white">Anime</Link>
+            <Link href="/kdrama" className="transition hover:text-white">K-Drama</Link>
+            <Link href="/pinoy" className="transition hover:text-white">Pinoy</Link>
             <Link href="/discover" className="transition hover:text-white">Discover</Link>
           </nav>
           <Link
@@ -137,9 +153,9 @@ export default async function LandingPage() {
             </div>
             <div className="mt-9 grid max-w-xl grid-cols-3 gap-3 text-sm text-white/70">
               {[
-                ['AI Core', 'live recommendation engine'],
-                ['4 lanes', 'film, TV, anime, animation'],
-                ['Trailer first', 'before commitment'],
+                ['Tonight Mode', 'pick faster by mood'],
+                ['Global drama', 'K-drama and Pinoy hubs'],
+                ['Trailer first', 'test before commitment'],
               ].map(([metric, label]) => (
                 <div key={metric} className="border-l border-white/18 pl-4">
                   <div className="text-xl font-black text-white">{metric}</div>
@@ -150,7 +166,7 @@ export default async function LandingPage() {
           </div>
 
           <div className="hidden md:block">
-            <div className="rounded-xl border border-white/14 bg-[#0b0d10]/82 p-3 shadow-[0_28px_90px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+            <div className="sv-float rounded-xl border border-white/14 bg-[#0b0d10]/82 p-3 shadow-[0_28px_90px_rgba(0,0,0,0.55)] backdrop-blur-xl">
               <div className="aspect-video overflow-hidden rounded-lg bg-black">
                 <Image
                   src={imageUrl(featured[0]?.backdrop_path || hero?.backdrop_path || FALLBACK_BACKDROPS[1], 'w780')}
@@ -193,7 +209,8 @@ export default async function LandingPage() {
 
         <div className="relative z-10 border-t border-white/10 bg-black/45 px-5 py-4 backdrop-blur md:px-8">
           <div className="mx-auto flex max-w-7xl gap-3 overflow-hidden">
-            {posterDeck.slice(0, 8).map((item: any, index: number) => (
+            <div className="sv-poster-strip flex min-w-max gap-3">
+            {[...posterDeck.slice(0, 8), ...posterDeck.slice(0, 8)].map((item: any, index: number) => (
               <div key={item.id || index} className="h-24 w-16 shrink-0 overflow-hidden rounded-md border border-white/12 bg-white/5 md:h-32 md:w-20">
                 <Image
                   src={imageUrl(item.poster_path, 'w500')}
@@ -204,6 +221,7 @@ export default async function LandingPage() {
                 />
               </div>
             ))}
+            </div>
             <div className="ml-auto hidden min-w-72 items-center justify-end gap-3 text-right text-sm text-white/62 md:flex">
               <BadgeCheck className="h-5 w-5 text-[#9ee493]" />
               <span>AI recommendations route movies, TV, anime, and western animation into separate taste lanes.</span>
@@ -227,7 +245,7 @@ export default async function LandingPage() {
             {[
               [Brain, 'Taste DNA', 'Learns the patterns behind your repeats, skips, and saves.'],
               [Clapperboard, 'Trailer-first', 'One Shot prioritizes playable trailer picks over static posters.'],
-              [Film, 'Format lanes', 'Anime, animation, movies, and shows are routed separately.'],
+              [Film, 'Global drama lanes', 'K-drama and Pinoy soaps get dedicated discovery, trailers, and watch pages.'],
               [Clock3, 'Watch-ready', 'Episodes, seasons, music cues, and feedback live near playback.'],
             ].map(([Icon, title, copy]: any) => (
               <article key={title} className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
@@ -275,6 +293,34 @@ export default async function LandingPage() {
           </div>
         </div>
       </section>
+
+      <section className="border-t border-white/10 bg-[#08090b] px-5 py-18 md:px-8 md:py-24">
+        <div className="mx-auto grid max-w-7xl gap-5 md:grid-cols-3">
+          {[
+            ['Tonight Mode', 'Tell StreamVault the night you have: tired, date night, weekend binge, under two hours. It filters by real commitment, not just genre.', '/dashboard'],
+            ['K-Drama Hub', 'Korean dramas open to detail pages with trailers, episode playback, Viki fallback links, and scoped Korean discovery.', '/kdrama'],
+            ['Pinoy Drama Hub', 'Filipino soaps, official iWantTFC and BlastTV links, live Pinoy TV, English-friendly searches, and TMDB-matched playback.', '/pinoy'],
+          ].map(([title, copy, href]) => (
+            <Link key={title} href={href} className="group rounded-lg border border-white/10 bg-white/[0.035] p-6 transition hover:border-[#9ee493]/35 hover:bg-[#9ee493]/8">
+              <h3 className="text-2xl font-black">{title}</h3>
+              <p className="mt-4 text-sm leading-7 text-white/58">{copy}</p>
+              <span className="mt-6 inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-[#9ee493] group-hover:text-white">
+                Open <ArrowRight className="h-4 w-4" />
+              </span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <footer className="border-t border-white/10 bg-black px-5 py-8 text-sm text-white/45 md:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <span className="font-black uppercase tracking-[0.18em] text-white/55">StreamVault</span>
+          <div className="flex flex-wrap gap-4">
+            <Link href="/privacy" className="transition hover:text-white">Privacy Policy</Link>
+            <Link href="/terms" className="transition hover:text-white">Terms of Service</Link>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }

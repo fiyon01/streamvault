@@ -5,6 +5,12 @@ import { seedCreatorCatalogue, upsertCreatorVideos } from '@/lib/youtube/creator
 
 export const maxDuration = 60;
 
+type CreatorIndexMeta = {
+  category: string;
+  tags: string[];
+  isCanon: boolean;
+};
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ channelId: string }> },
@@ -31,20 +37,53 @@ export async function POST(
   }
 
   const seed = getSeedCreator(channelId);
-  if (!seed) {
-    return Response.json({ error: 'Creator is not in the StreamVault seed catalogue yet.' }, { status: 404 });
-  }
 
   try {
     const admin = createAdminClient();
-    await seedCreatorCatalogue(admin);
+    let creatorMeta: CreatorIndexMeta | null = seed
+      ? {
+          category: seed.category,
+          tags: seed.tags,
+          isCanon: seed.isCanon ?? false,
+        }
+      : null;
+
+    if (seed) {
+      await seedCreatorCatalogue(admin);
+    } else {
+      const { data: creator, error: creatorError } = await admin
+        .from('youtube_creators')
+        .select('channel_id,category,tags,is_canon')
+        .eq('channel_id', channelId)
+        .maybeSingle();
+
+      if (creatorError) throw creatorError;
+      if (!creator) {
+        return Response.json({ error: 'Creator is not followed or imported in StreamVault yet.' }, { status: 404 });
+      }
+
+      creatorMeta = {
+        category: creator.category ?? 'lifestyle',
+        tags: Array.isArray(creator.tags) ? creator.tags : ['youtube_import'],
+        isCanon: Boolean(creator.is_canon),
+      };
+    }
+
+    if (!creatorMeta) {
+      return Response.json({ error: 'Creator metadata is missing.' }, { status: 500 });
+    }
+
     const videos = await getChannelUploads(channelId, limit);
+    if (!videos.length) {
+      return Response.json({ indexed: 0, channelId, message: 'No public uploads were returned by YouTube for this channel.' });
+    }
+
     const tagged = videos.map((video) => ({
       ...video,
-      category: seed.category,
-      tags: seed.tags,
-      streamvaultScore: scoreVideo(video.durationSeconds ?? 0, video.viewCount ?? 0, seed.isCanon ?? false),
-      isCurated: seed.isCanon ?? false,
+      category: creatorMeta.category,
+      tags: creatorMeta.tags,
+      streamvaultScore: scoreVideo(video.durationSeconds ?? 0, video.viewCount ?? 0, creatorMeta.isCanon),
+      isCurated: creatorMeta.isCanon,
     }));
 
     const indexed = await upsertCreatorVideos(admin, tagged);

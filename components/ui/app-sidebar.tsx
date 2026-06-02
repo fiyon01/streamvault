@@ -27,6 +27,8 @@ const NAV_GROUPS = [
     items: [
       { label: 'Movies',    href: '/movies',    icon: Film },
       { label: 'TV Shows',  href: '/shows',     icon: Tv },
+      { label: 'K-Drama',   href: '/kdrama',    icon: Tv },
+      { label: 'Pinoy Drama', href: '/pinoy',    icon: Tv },
       { label: 'African Hub', href: '/africa',   icon: Globe2 },
       { label: 'Creator Hub', href: '/creators', icon: Clapperboard },
       { label: 'Watchlist', href: '/watchlist', icon: Heart },

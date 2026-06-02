@@ -15,6 +15,8 @@ const MOBILE_NAV = [
   { href: '/dashboard', icon: Home,    label: 'Home'     },
   { href: '/movies',    icon: Film,    label: 'Movies'   },
   { href: '/shows',     icon: Tv,      label: 'Shows'    },
+  { href: '/kdrama',    icon: Tv,      label: 'K-Drama'  },
+  { href: '/pinoy',     icon: Tv,      label: 'Pinoy'    },
   { href: '/anime',     icon: Swords,  label: 'Anime'    },
   { href: '/africa',    icon: Globe2,  label: 'Africa'   },
   { href: '/creators',  icon: Clapperboard, label: 'Creators' },

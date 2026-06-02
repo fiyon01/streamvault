@@ -1,6 +1,9 @@
-import { Brain, Clock3, Compass, ShieldCheck, Sparkles } from 'lucide-react';
+import Image from 'next/image';
+import { Brain, Clock3, Compass, PlayCircle, ShieldCheck, Sparkles } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { TonightDecisionActions } from '@/components/vault/tonight-decision-actions';
+import { getWatchlist } from '@/app/actions/watchlist';
+import { tmdb } from '@/lib/tmdb/api';
 
 type CalibrationRow = {
   loved_titles?: string[] | null;
@@ -16,6 +19,9 @@ type HistoryRow = {
   content?: {
     title?: string | null;
     type?: string | null;
+    poster_path?: string | null;
+    backdrop_path?: string | null;
+    runtime?: number | null;
   } | null;
 };
 
@@ -34,8 +40,20 @@ type Candidate = {
   watchHref: string;
   badge: string;
   posterTone: string;
+  backdropPath?: string | null;
+  posterPath?: string | null;
+  sourceRank?: number;
   reasons: string[];
   bridgeTerms: string[];
+};
+
+type WatchlistPick = {
+  tmdb_id: string;
+  title: string;
+  type: string;
+  poster_path: string;
+  runtime: number | null;
+  rating: number;
 };
 
 const CANDIDATES: Candidate[] = [
@@ -113,8 +131,9 @@ function selectCandidate(params: {
   calibration: CalibrationRow | null;
   history: HistoryRow[];
   signals: SignalRow[];
+  watchlist: Candidate[];
 }) {
-  const watched = new Set(params.history.map((row) => row.content_id));
+  const completed = new Set(params.history.filter((row) => row.completed).map((row) => row.content_id));
   const rejected = new Set(
     params.signals
       .filter((row) => Number(row.signal_weight ?? 0) < 0)
@@ -122,17 +141,45 @@ function selectCandidate(params: {
       .filter(Boolean)
   );
 
+  const resumeCandidates: Candidate[] = params.history
+    .filter((row) => !row.completed && Number(row.position_seconds ?? 0) > 0 && row.content?.title)
+    .slice(0, 3)
+    .map((row) => {
+      const mediaType = row.content?.type === 'show' || row.content?.type === 'tv' ? 'tv' : 'movie';
+      const minutes = Math.max(1, Math.round(Number(row.position_seconds ?? 0) / 60));
+
+      return {
+        tmdbId: row.content_id,
+        mediaType,
+        title: row.content?.title ?? 'Continue watching',
+        subtitle: `You already started this. Resume from around minute ${minutes} instead of opening another loop.`,
+        runtimeLabel: row.content?.runtime ? `${row.content.runtime} min` : 'Already started',
+        watchHref: `/watch/${mediaType === 'tv' ? 'show' : 'movie'}/${row.content_id}`,
+        badge: 'Resume beats scrolling',
+        posterTone: 'from-[#9ee493]/24 via-sky-500/12 to-black',
+        backdropPath: row.content?.backdrop_path,
+        posterPath: row.content?.poster_path,
+        sourceRank: 40,
+        bridgeTerms: ['continue', 'resume', row.content?.title ?? ''],
+        reasons: [
+          'You gave this title a real signal by starting it.',
+          'Finishing an existing pick teaches VAULT more than opening five new tabs.',
+          'This keeps the dashboard focused on what you were already doing.',
+        ],
+      };
+    });
+
   const lovedText = [
     ...(params.calibration?.loved_titles ?? []),
     params.calibration?.abandoned_title ?? '',
     ...params.history.map((row) => row.content?.title ?? ''),
   ].join(' ').toLowerCase();
 
-  const scored = CANDIDATES
-    .filter((candidate) => !watched.has(candidate.tmdbId) && !rejected.has(candidate.tmdbId))
+  const scored = [...resumeCandidates, ...params.watchlist, ...CANDIDATES]
+    .filter((candidate) => !completed.has(candidate.tmdbId) && !rejected.has(candidate.tmdbId))
     .map((candidate) => ({
       candidate,
-      score: textIncludes(lovedText, candidate.bridgeTerms) ? 10 : 0,
+      score: (candidate.sourceRank ?? 0) + (textIncludes(lovedText, candidate.bridgeTerms) ? 10 : 0),
     }))
     .sort((a, b) => b.score - a.score);
 
@@ -145,6 +192,47 @@ function confidenceLabel(calibration: CalibrationRow | null, historyCount: numbe
   return 'Cold-start decision';
 }
 
+function watchlistToCandidates(items: WatchlistPick[]): Candidate[] {
+  return items.slice(0, 8).map((item) => {
+    const mediaType = item.type === 'tv' || item.type === 'show' ? 'tv' : 'movie';
+
+    return {
+      tmdbId: item.tmdb_id,
+      mediaType,
+      title: item.title,
+      subtitle: `This is already on your list. VAULT is turning saved intent into an actual play decision.`,
+      runtimeLabel: item.runtime ? `${item.runtime} min` : 'From your watchlist',
+      watchHref: `/watch/${mediaType === 'tv' ? 'show' : 'movie'}/${item.tmdb_id}`,
+      badge: item.rating ? `Your watchlist - ${item.rating.toFixed(1)} TMDB` : 'Your watchlist',
+      posterTone: 'from-[#9ee493]/24 via-emerald-500/10 to-black',
+      posterPath: item.poster_path,
+      sourceRank: 24,
+      bridgeTerms: [item.title.toLowerCase(), mediaType, 'watchlist'],
+      reasons: [
+        'You already saved it, so this is not a random dashboard pick.',
+        'VAULT is prioritising intent over generic popularity.',
+        'One tap turns the watchlist from a graveyard into a queue.',
+      ],
+    };
+  });
+}
+
+async function hydrateArtwork(candidate: Candidate) {
+  try {
+    const details = await tmdb.getDetails(candidate.mediaType, candidate.tmdbId);
+
+    return {
+      ...candidate,
+      title: candidate.title || details.title || details.name,
+      backdropPath: candidate.backdropPath || details.backdrop_path || null,
+      posterPath: candidate.posterPath || details.poster_path || null,
+      runtimeLabel: candidate.runtimeLabel || (details.runtime ? `${details.runtime} min` : candidate.runtimeLabel),
+    };
+  } catch {
+    return candidate;
+  }
+}
+
 export async function TonightDecisionCard() {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -152,9 +240,10 @@ export async function TonightDecisionCard() {
   let calibration: CalibrationRow | null = null;
   let history: HistoryRow[] = [];
   let signals: SignalRow[] = [];
+  let watchlistCandidates: Candidate[] = [];
 
   if (user) {
-    const [calibrationRes, historyRes, signalsRes] = await Promise.all([
+    const [calibrationRes, historyRes, signalsRes, watchlist] = await Promise.all([
       supabase
         .from('user_taste_calibrations')
         .select('loved_titles, overrated_titles, abandoned_title, standards_summary')
@@ -162,7 +251,7 @@ export async function TonightDecisionCard() {
         .maybeSingle(),
       supabase
         .from('watch_history')
-        .select('content_id, completed, position_seconds, content(title,type)')
+        .select('content_id, completed, position_seconds, content(title,type,poster_path,backdrop_path,runtime)')
         .eq('user_id', user.id)
         .order('last_watched', { ascending: false })
         .limit(12),
@@ -172,22 +261,36 @@ export async function TonightDecisionCard() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(80),
+      getWatchlist(),
     ]);
 
     calibration = (calibrationRes.data as CalibrationRow | null) ?? null;
     history = (historyRes.data as HistoryRow[] | null) ?? [];
     signals = (signalsRes.data as SignalRow[] | null) ?? [];
+    watchlistCandidates = watchlistToCandidates(watchlist as WatchlistPick[]);
   }
 
-  const pick = selectCandidate({ calibration, history, signals });
+  const pick = await hydrateArtwork(selectCandidate({ calibration, history, signals, watchlist: watchlistCandidates }));
   const confidence = confidenceLabel(calibration, history.length);
   const isLate = new Date().getHours() >= 21;
+  const backdropSrc = pick.backdropPath ? `https://image.tmdb.org/t/p/original${pick.backdropPath}` : null;
+  const posterSrc = pick.posterPath ? `https://image.tmdb.org/t/p/w500${pick.posterPath}` : null;
 
   return (
     <section className="px-4 pt-4 sm:px-6 md:px-8 lg:px-12">
       <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[#05070d] shadow-[0_30px_120px_rgba(0,0,0,0.55)]">
+        {backdropSrc && (
+          <Image
+            src={backdropSrc}
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover opacity-46"
+          />
+        )}
         <div className={`absolute inset-y-0 right-0 w-full bg-gradient-to-br ${pick.posterTone} opacity-90 sm:w-[52%]`} />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_18%,rgba(255,255,255,0.13),transparent_28%),linear-gradient(90deg,#05070d_0%,rgba(5,7,13,0.96)_48%,rgba(5,7,13,0.54)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_18%,rgba(255,255,255,0.12),transparent_26%),linear-gradient(90deg,#05070d_0%,rgba(5,7,13,0.96)_42%,rgba(5,7,13,0.58)_100%)]" />
 
         <div className="relative grid gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.75fr)] lg:p-9">
           <div className="max-w-3xl">
@@ -231,7 +334,21 @@ export async function TonightDecisionCard() {
             />
           </div>
 
-          <aside className="rounded-2xl border border-white/10 bg-black/28 p-4 backdrop-blur-xl lg:self-end">
+          <aside className="rounded-2xl border border-white/10 bg-black/42 p-4 backdrop-blur-xl lg:self-end">
+            {posterSrc && (
+              <div className="mb-4 flex gap-4">
+                <div className="relative aspect-[2/3] w-24 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/5 shadow-2xl">
+                  <Image src={posterSrc} alt={pick.title} fill sizes="96px" className="object-cover" />
+                </div>
+                <div className="min-w-0 self-end">
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-white/55">
+                    <PlayCircle size={12} />
+                    Ready to play
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-sm font-black text-white">{pick.title}</p>
+                </div>
+              </div>
+            )}
             <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-white/35">
               <Brain size={14} className="text-[#9ee493]" />
               Why this, not a row

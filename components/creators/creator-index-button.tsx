@@ -1,18 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
-export function CreatorIndexButton({ channelId }: { channelId: string }) {
+export function CreatorIndexButton({ channelId, autoStart = false }: { channelId: string; autoStart?: boolean }) {
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const autoStarted = useRef(false);
 
-  const indexVideos = async () => {
+  const indexVideos = useCallback(async (mode: 'manual' | 'auto' = 'manual') => {
+    if (pending) return;
     setPending(true);
-    setStatus('Indexing official uploads...');
+    setStatus(mode === 'auto' ? 'Building this creator catalogue...' : 'Indexing official uploads...');
     try {
-      const res = await fetch(`/api/creators/${channelId}/index?limit=24`, { method: 'POST' });
+      const res = await fetch(`/api/creators/${channelId}/index?limit=${mode === 'auto' ? 36 : 48}`, { method: 'POST' });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         setStatus(typeof body.error === 'string' ? body.error : 'Indexing failed.');
@@ -25,13 +27,19 @@ export function CreatorIndexButton({ channelId }: { channelId: string }) {
     } finally {
       setPending(false);
     }
-  };
+  }, [channelId, pending]);
+
+  useEffect(() => {
+    if (!autoStart || autoStarted.current) return;
+    autoStarted.current = true;
+    indexVideos('auto');
+  }, [autoStart, indexVideos]);
 
   return (
     <div className="flex flex-col items-start gap-2">
       <button
         type="button"
-        onClick={indexVideos}
+        onClick={() => indexVideos('manual')}
         disabled={pending}
         className={cn(
           'inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-xs font-black text-white/65 transition hover:bg-white/10 hover:text-white',

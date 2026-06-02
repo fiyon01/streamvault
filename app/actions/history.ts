@@ -14,6 +14,8 @@ export async function recordWatchHistory(input: {
   runtime?: number | null;
   positionSeconds?: number;
   completed?: boolean;
+  isKdrama?: boolean;
+  isPinoyContent?: boolean;
 }) {
   const supabase = createClient();
   const { data: auth } = await supabase.auth.getUser();
@@ -35,6 +37,8 @@ export async function recordWatchHistory(input: {
     backdrop_path: input.backdropPath || null,
     release_date: input.releaseDate || null,
     runtime: input.runtime || null,
+    ...(input.isKdrama ? { is_kdrama: true } : {}),
+    ...(input.isPinoyContent ? { is_pinoy_content: true } : {}),
     updated_at: new Date().toISOString(),
   }, { onConflict: 'id' });
 

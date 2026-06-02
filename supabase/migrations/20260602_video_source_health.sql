@@ -60,7 +60,7 @@ create table if not exists playback_source_events (
   source_id text,
   source_url text,
   event_type text not null check (
-    event_type in ('attempt', 'load', 'timeout', 'error', 'manual_next', 'selected', 'reported_broken')
+    event_type in ('attempt', 'load', 'confirmed_working', 'timeout', 'error', 'manual_next', 'selected', 'reported_broken')
   ),
   response_time_ms integer,
   has_ads boolean not null default true,

@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState, useCallback, useTransition, useRef } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useLiveActionStore } from '@/store/filter-store';
 import { discoverLiveAction } from '@/app/actions/discover';
@@ -42,6 +43,7 @@ const COUNTRIES = [
   { label: 'Tanzania', value: 'TZ' }, { label: 'Uganda', value: 'UG' },
   { label: 'South Africa', value: 'ZA' }, { label: 'Ghana', value: 'GH' },
   { label: 'Egypt', value: 'EG' }, { label: 'Ethiopia', value: 'ET' },
+  { label: 'Philippines', value: 'PH' },
   { label: '🇺🇸 US', value: 'US' }, { label: '🇬🇧 UK', value: 'GB' },
   { label: '🇯🇵 Japan', value: 'JP' }, { label: '🇰🇷 South Korea', value: 'KR' },
   { label: '🇪🇸 Spain', value: 'ES' }, { label: '🇫🇷 France', value: 'FR' },
@@ -57,6 +59,7 @@ const LANGUAGES = [
   { label: 'Igbo', value: 'ig' }, { label: 'Swahili', value: 'sw' },
   { label: 'Arabic', value: 'ar' },
   { label: 'English', value: 'en' }, { label: 'Korean', value: 'ko' },
+  { label: 'Tagalog', value: 'tl' },
   { label: 'Japanese', value: 'ja' }, { label: 'Spanish', value: 'es' },
   { label: 'French', value: 'fr' }, { label: 'German', value: 'de' },
   { label: 'Portuguese', value: 'pt' }, { label: 'Italian', value: 'it' },
@@ -72,6 +75,25 @@ const NETWORKS = [
 const DECADES = ['1980s', '1990s', '2000s', '2010s', '2020s'];
 const CURRENT_YEAR = new Date().getFullYear();
 const PAGE_SIZE = 20;
+
+const TONIGHT_DISCOVERY_PRESETS = [
+  {
+    label: 'Under 2 hours',
+    href: '/discover?tonightMode=true&contentType=both&maxMovieRuntime=120&maxEpisodeRuntime=45&minImdbRating=7&minVoteCount=300',
+  },
+  {
+    label: 'Finish this weekend',
+    href: '/discover?tonightMode=true&contentType=tv&maxCommitmentHours=15&tvStatus=ended&noSeasonBelow=7&qualityTrajectory=stable&sortBy=rating',
+  },
+  {
+    label: 'No regrets',
+    href: '/discover?tonightMode=true&contentType=tv&tvStatus=ended&noSeasonBelow=7.5&qualityTrajectory=stable&maxFillerPercentage=10&sortBy=rating',
+  },
+  {
+    label: 'Long journey',
+    href: '/discover?tonightMode=true&contentType=tv&minCommitmentHours=80&minSeasons=3&minImdbRating=7.5&sortBy=rating',
+  },
+];
 
 // ── COMPONENT ──
 
@@ -94,6 +116,13 @@ function DiscoverLoading() {
   );
 }
 
+function numberParam(searchParams: { get: (key: string) => string | null }, key: string) {
+  const raw = searchParams.get(key);
+  if (!raw) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
 function DiscoverClient() {
   const searchParams = useSearchParams();
   const filters = useLiveActionStore();
@@ -109,6 +138,25 @@ function DiscoverClient() {
   });
   const observerTarget = useRef<HTMLDivElement>(null);
   const hydratedUrlFilters = useRef('');
+  const vertical = searchParams.get('vertical');
+  const verticalContext =
+    vertical === 'kdrama'
+      ? {
+          eyebrow: 'K-Drama Discovery',
+          title: 'K-drama filters',
+          description: 'Results stay scoped to South Korean TV and Korean-language discovery. Tune commitment, rating, subtitles, and genre without drifting into generic US content.',
+          homeHref: '/kdrama',
+          homeLabel: 'Back to K-Drama Hub',
+        }
+      : vertical === 'pinoy'
+        ? {
+            eyebrow: 'Pinoy Drama Discovery',
+            title: 'Pinoy soap filters',
+            description: 'Results stay scoped to Philippine TV and Pinoy drama discovery. Tune English dub/sub, runtime, romance, and drama without losing the Pinoy catalogue.',
+            homeHref: '/pinoy',
+            homeLabel: 'Back to Pinoy Hub',
+          }
+        : null;
 
   useEffect(() => {
     const query = searchParams.toString();
@@ -120,6 +168,10 @@ function DiscoverClient() {
     const originalLanguage = searchParams.get('originalLanguage');
     const selectedGenres = searchParams.get('selectedGenres');
     const africanRegion = searchParams.get('africanRegion');
+    const sortBy = searchParams.get('sortBy');
+    const tvStatus = searchParams.get('tvStatus');
+    const qualityTrajectory = searchParams.get('qualityTrajectory');
+    const maturityRating = searchParams.get('maturityRating');
     const africanOnly =
       searchParams.get('africanOnly') === 'true' ||
       searchParams.get('is_african_content') === 'true' ||
@@ -130,10 +182,50 @@ function DiscoverClient() {
     if (contentType === 'movie' || contentType === 'tv' || contentType === 'both') {
       filters.setFilter('contentType', contentType);
     }
+    if (sortBy === 'popularity' || sortBy === 'rating' || sortBy === 'recent') {
+      filters.setFilter('sortBy', sortBy);
+    }
     if (originCountry) filters.setFilter('originCountry', originCountry);
     if (originalLanguage) filters.setFilter('originalLanguage', originalLanguage);
     if (selectedGenres) {
       filters.setFilter('selectedGenres', selectedGenres.split(',').map((genre) => genre.trim()).filter(Boolean));
+    }
+    const minImdbRating = numberParam(searchParams, 'minImdbRating');
+    const minVoteCount = numberParam(searchParams, 'minVoteCount');
+    const minMovieRuntime = numberParam(searchParams, 'minMovieRuntime');
+    const maxMovieRuntime = numberParam(searchParams, 'maxMovieRuntime');
+    const minEpisodeRuntime = numberParam(searchParams, 'minEpisodeRuntime');
+    const maxEpisodeRuntime = numberParam(searchParams, 'maxEpisodeRuntime');
+    const minCommitmentHours = numberParam(searchParams, 'minCommitmentHours');
+    const maxCommitmentHours = numberParam(searchParams, 'maxCommitmentHours');
+    const noSeasonBelow = numberParam(searchParams, 'noSeasonBelow');
+    const maxFillerPercentage = numberParam(searchParams, 'maxFillerPercentage');
+    const minSeasons = numberParam(searchParams, 'minSeasons');
+
+    if (minImdbRating !== null) filters.setFilter('minImdbRating', minImdbRating);
+    if (minVoteCount !== null) filters.setFilter('minVoteCount', minVoteCount);
+    if (minMovieRuntime !== null) filters.setFilter('minMovieRuntime', minMovieRuntime);
+    if (maxMovieRuntime !== null) filters.setFilter('maxMovieRuntime', maxMovieRuntime);
+    if (minEpisodeRuntime !== null) filters.setFilter('minEpisodeRuntime', minEpisodeRuntime);
+    if (maxEpisodeRuntime !== null) filters.setFilter('maxEpisodeRuntime', maxEpisodeRuntime);
+    if (minCommitmentHours !== null) filters.setFilter('minCommitmentHours', minCommitmentHours);
+    if (maxCommitmentHours !== null) filters.setFilter('maxCommitmentHours', maxCommitmentHours);
+    if (noSeasonBelow !== null) filters.setFilter('noSeasonBelow', noSeasonBelow);
+    if (maxFillerPercentage !== null) filters.setFilter('maxFillerPercentage', maxFillerPercentage);
+    if (minSeasons !== null) filters.setFilter('minSeasons', minSeasons);
+    if (searchParams.get('hiddenGemMode') === 'true') filters.setFilter('hiddenGemMode', true);
+    if (searchParams.get('requireDub') === 'true') filters.setFilter('requireDub', true);
+    if (searchParams.get('requireSub') === 'true') filters.setFilter('requireSub', true);
+    const dubLanguage = searchParams.get('dubLanguage');
+    if (dubLanguage) filters.setFilter('dubLanguage', dubLanguage);
+    if (tvStatus === 'returning' || tvStatus === 'ended' || tvStatus === 'canceled' || tvStatus === 'hiatus' || tvStatus === 'upcoming') {
+      filters.setFilter('tvStatus', tvStatus);
+    }
+    if (qualityTrajectory === 'rising' || qualityTrajectory === 'stable' || qualityTrajectory === 'declining') {
+      filters.setFilter('qualityTrajectory', qualityTrajectory);
+    }
+    if (maturityRating === 'TV-Y' || maturityRating === 'TV-G' || maturityRating === 'TV-PG' || maturityRating === 'TV-14' || maturityRating === 'TV-MA') {
+      filters.setFilter('maturityRating', maturityRating);
     }
     if (africanOnly) filters.setFilter('africanOnly', true);
     if (
@@ -149,6 +241,14 @@ function DiscoverClient() {
     if (searchParams.get('is_sports_content') === 'true') filters.setFilter('selectedGenres', ['Documentary']);
     if (searchParams.get('is_music_content') === 'true') filters.setFilter('selectedGenres', ['Music', 'Documentary']);
     if (searchParams.get('is_kids_content') === 'true') filters.setFilter('selectedGenres', ['Family']);
+    if (searchParams.get('tonightMode') === 'true') {
+      setExpandedSections((current) => ({
+        ...current,
+        commitment: true,
+        advanced: true,
+        quality: true,
+      }));
+    }
   }, [filters, searchParams]);
 
   // Build a string of all non-page filters to detect changes
@@ -227,6 +327,7 @@ function DiscoverClient() {
 
   const isTvMode = filters.contentType === 'tv' || filters.contentType === 'both';
   const isMovieMode = filters.contentType === 'movie' || filters.contentType === 'both';
+  const fromTonightMode = searchParams.get('tonightMode') === 'true';
 
   // Active filter count
   const activeFilterCount = [
@@ -322,9 +423,26 @@ function DiscoverClient() {
                 <div className="w-8 h-8 rounded-lg bg-[#6366f1]/20 border border-[#6366f1]/30 flex items-center justify-center">
                   <Search size={16} className="text-[#6366f1]" />
                 </div>
-                <span className="text-[#6366f1] text-xs font-bold uppercase tracking-[0.2em]">Advanced Discovery</span>
+                <span className="text-[#6366f1] text-xs font-bold uppercase tracking-[0.2em]">
+                  {verticalContext?.eyebrow || 'Advanced Discovery'}
+                </span>
               </div>
-              <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white">Discover</h1>
+              <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white">
+                {verticalContext?.title || 'Discover'}
+              </h1>
+              {verticalContext && (
+                <div className="mt-3 max-w-3xl rounded-2xl border border-[#6366f1]/20 bg-[#6366f1]/10 px-4 py-3 text-sm font-semibold leading-6 text-white/70">
+                  <p>{verticalContext.description}</p>
+                  <Link href={verticalContext.homeHref} className="mt-2 inline-flex text-xs font-black uppercase tracking-[0.16em] text-[#9ee493] hover:text-white">
+                    {verticalContext.homeLabel}
+                  </Link>
+                </div>
+              )}
+              {fromTonightMode && (
+                <p className="mt-3 max-w-2xl rounded-2xl border border-[#9ee493]/20 bg-[#9ee493]/10 px-4 py-3 text-sm font-semibold leading-6 text-[#d9ffd6]/80">
+                  Tonight Mode is active. These results are filtered by mood, commitment, and no-regrets constraints instead of raw category browsing.
+                </p>
+              )}
               <p className="text-white/40 mt-2 text-sm font-medium">
                 {isLoading ? 'Searching...' : `${results.length > 0 ? `${results.length}+ results` : 'No results'}`}
                 {activeFilterCount > 0 && <span className="ml-2 text-[#6366f1]">· {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active</span>}
@@ -383,6 +501,20 @@ function DiscoverClient() {
               ))}
             </div>
           )}
+          <div className="mt-5 flex flex-wrap gap-2 border-t border-white/[0.06] pt-5">
+            <span className="mr-1 inline-flex items-center rounded-full border border-white/10 bg-white/[0.035] px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/35">
+              Tonight presets
+            </span>
+            {TONIGHT_DISCOVERY_PRESETS.map((preset) => (
+              <Link
+                key={preset.label}
+                href={preset.href}
+                className="rounded-full border border-white/10 bg-white/[0.035] px-3 py-2 text-xs font-bold text-white/55 transition hover:border-[#9ee493]/30 hover:bg-[#9ee493]/10 hover:text-[#d9ffd6]"
+              >
+                {preset.label}
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
 

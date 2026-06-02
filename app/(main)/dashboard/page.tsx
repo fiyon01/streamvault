@@ -4,6 +4,7 @@ import { MoodEngineCard } from '@/components/recommendations/mood-engine-card';
 import { CreatorCatchUpCard } from '@/components/creators/creator-catch-up-card';
 import { FirstSessionCalibrationCard } from '@/components/vault/first-session-calibration-card';
 import { TonightDecisionCard } from '@/components/vault/tonight-decision-card';
+import { TonightModePanel } from '@/components/vault/tonight-mode-panel';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -19,6 +20,8 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen overflow-x-hidden pb-24" style={{ background: 'var(--color-bg)' }}>
       <TonightDecisionCard />
+
+      <TonightModePanel />
 
       <MoodEngineCard />
 

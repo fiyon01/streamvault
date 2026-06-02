@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle,
   BadgeCheck,
   Gauge,
   Layers3,
@@ -14,6 +13,7 @@ import {
   Shield,
   ShieldAlert,
   SkipForward,
+  ThumbsUp,
 } from 'lucide-react';
 import { logUserSignal } from '@/app/actions/signals';
 import { recordWatchHistory } from '@/app/actions/history';
@@ -38,7 +38,7 @@ interface VideoPlayerProps {
   nextLabel?: string;
 }
 
-type SourceEventType = 'attempt' | 'load' | 'timeout' | 'error' | 'manual_next' | 'selected' | 'reported_broken';
+type SourceEventType = 'attempt' | 'load' | 'confirmed_working' | 'timeout' | 'error' | 'manual_next' | 'selected' | 'reported_broken';
 
 type SourceReliability = {
   successCount: number;
@@ -46,7 +46,6 @@ type SourceReliability = {
   lastError?: string | null;
   uptimePercentage?: number | null;
   avgResponseTimeMs?: number | null;
-  isGoodForTitle: boolean;
   isBadForTitle: boolean;
 };
 
@@ -68,9 +67,9 @@ function getSourceSessionId() {
 function SourceIcon({ provider }: { provider: VideoProvider }) {
   if (provider.id === 'embed-su') return <Shield size={14} />;
   if (provider.id === 'multiembed') return <Layers3 size={14} />;
-  if (provider.id === 'moviesapi') return <Server size={14} />;
+  if (provider.id === 'moviesapi' || provider.id === 'primesrc') return <Server size={14} />;
   if (provider.id === 'vidsrc-in') return <ShieldAlert size={14} />;
-  return <AlertTriangle size={14} />;
+  return <Radio size={14} />;
 }
 
 function sourceTone(provider: VideoProvider, isActive: boolean) {
@@ -101,18 +100,20 @@ export function VideoPlayer({
   hasNext,
   nextLabel = 'Up Next',
 }: VideoPlayerProps) {
-  const [activeSource, setActiveSource] = useState<VideoSource>('embed-su');
+  const [activeSource, setActiveSource] = useState<VideoSource>('vidsrc-to');
   const [attemptIndex, setAttemptIndex] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'ready' | 'failed'>('connecting');
   const [failoverNotice, setFailoverNotice] = useState('');
   const [sourceReliability, setSourceReliability] = useState<Record<string, SourceReliability>>({});
+  const [confirmedSources, setConfirmedSources] = useState<Record<string, boolean>>({});
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreenControlsVisible, setFullscreenControlsVisible] = useState(false);
   const progressMarks = useRef({ started: false, forty: false, seventy: false, complete: false });
   const iframeLoaded = useRef(false);
   const sourceStartTime = useRef(Date.now());
-  const sourceLoadReported = useRef(false);
   const manualSourceSelection = useRef(false);
   const playerShellRef = useRef<HTMLDivElement | null>(null);
+  const fullscreenControlsTimer = useRef<number | null>(null);
 
   const episodeSeason = season ?? 1;
   const episodeNumber = episode ?? 1;
@@ -193,8 +194,8 @@ export function VideoPlayer({
 
   const advanceStream = useCallback((reason: 'timeout' | 'error' | 'manual') => {
     const reasonCopy = reason === 'manual'
-      ? 'Trying the next cleanest available server.'
-      : 'This source did not connect cleanly, so StreamVault is moving down the clean-first chain.';
+      ? 'Trying the next available server.'
+      : 'This source did not connect cleanly, so StreamVault is moving to the next working server.';
 
     if (attemptIndex < activeProvider.urls.length - 1) {
       setFailoverNotice(reasonCopy);
@@ -226,6 +227,22 @@ export function VideoPlayer({
     setFailoverNotice('Marked this server as broken for this title. StreamVault is trying the next source.');
     advanceStream('manual');
   }, [advanceStream, reportCurrentSourceEvent]);
+
+  const revealFullscreenControls = useCallback((linger = false) => {
+    if (!isFullscreen) return;
+
+    setFullscreenControlsVisible(true);
+    if (fullscreenControlsTimer.current) {
+      window.clearTimeout(fullscreenControlsTimer.current);
+    }
+
+    if (!linger) {
+      fullscreenControlsTimer.current = window.setTimeout(() => {
+        setFullscreenControlsVisible(false);
+        fullscreenControlsTimer.current = null;
+      }, 2800);
+    }
+  }, [isFullscreen]);
 
   const toggleFullscreen = useCallback(async () => {
     const shell = playerShellRef.current;
@@ -339,8 +356,7 @@ export function VideoPlayer({
             lastError: content?.last_error,
             uptimePercentage: typeof global?.uptime_percentage === 'number' ? global.uptime_percentage : null,
             avgResponseTimeMs: typeof global?.avg_response_time_ms === 'number' ? global.avg_response_time_ms : null,
-            isGoodForTitle: successCount > 0 && successCount >= failCount,
-            isBadForTitle: failCount >= 2 && successCount === 0,
+            isBadForTitle: failCount >= 2 && failCount > successCount,
           };
 
           return acc;
@@ -371,7 +387,8 @@ export function VideoPlayer({
   useEffect(() => {
     manualSourceSelection.current = false;
     setSourceReliability({});
-    setActiveSource('embed-su');
+    setConfirmedSources({});
+    setActiveSource('vidsrc-to');
     setAttemptIndex(0);
     setConnectionStatus('connecting');
     setFailoverNotice('');
@@ -379,7 +396,6 @@ export function VideoPlayer({
 
   useEffect(() => {
     iframeLoaded.current = false;
-    sourceLoadReported.current = false;
     sourceStartTime.current = Date.now();
     setConnectionStatus('connecting');
     reportCurrentSourceEvent('attempt', {
@@ -396,6 +412,15 @@ export function VideoPlayer({
 
     return () => window.clearTimeout(timeout);
   }, [activeProvider.urls.length, advanceStream, attemptIndex, currentUrl, reportCurrentSourceEvent]);
+
+  const handleConfirmWorking = useCallback(() => {
+    setConfirmedSources((current) => ({
+      ...current,
+      [activeProvider.id]: true,
+    }));
+    reportCurrentSourceEvent('confirmed_working', { reason: 'user_confirmed_playback_started' });
+    setFailoverNotice(`${activeProvider.label} confirmed for this title.`);
+  }, [activeProvider.id, activeProvider.label, reportCurrentSourceEvent]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -528,22 +553,75 @@ export function VideoPlayer({
     };
   }, []);
 
+  useEffect(() => {
+    if (!isFullscreen) {
+      setFullscreenControlsVisible(false);
+      if (fullscreenControlsTimer.current) {
+        window.clearTimeout(fullscreenControlsTimer.current);
+        fullscreenControlsTimer.current = null;
+      }
+      return;
+    }
+
+    setFullscreenControlsVisible(true);
+    fullscreenControlsTimer.current = window.setTimeout(() => {
+      setFullscreenControlsVisible(false);
+      fullscreenControlsTimer.current = null;
+    }, 3600);
+
+    const revealOnKeyboard = () => revealFullscreenControls();
+    window.addEventListener('keydown', revealOnKeyboard);
+
+    return () => {
+      window.removeEventListener('keydown', revealOnKeyboard);
+      if (fullscreenControlsTimer.current) {
+        window.clearTimeout(fullscreenControlsTimer.current);
+        fullscreenControlsTimer.current = null;
+      }
+    };
+  }, [isFullscreen, revealFullscreenControls]);
+
   return (
     <div
       ref={playerShellRef}
+      onPointerMove={() => revealFullscreenControls()}
+      onTouchStart={() => revealFullscreenControls()}
+      onFocusCapture={() => revealFullscreenControls(true)}
       className={cn(
         'relative w-full bg-black',
-        isFullscreen && 'h-screen w-screen overflow-hidden',
+        isFullscreen && 'fixed inset-0 z-[9999] h-[100dvh] w-[100dvw] overflow-hidden rounded-none bg-black',
         className
       )}
+      style={isFullscreen ? { width: '100vw', height: '100dvh', maxWidth: 'none', maxHeight: 'none' } : undefined}
     >
+      <style>{`
+        :fullscreen {
+          width: 100vw !important;
+          height: 100dvh !important;
+          max-width: none !important;
+          max-height: none !important;
+          background: #000 !important;
+        }
+        :-webkit-full-screen {
+          width: 100vw !important;
+          height: 100vh !important;
+          max-width: none !important;
+          max-height: none !important;
+          background: #000 !important;
+        }
+        :fullscreen iframe,
+        :-webkit-full-screen iframe {
+          width: 100vw !important;
+          height: 100dvh !important;
+        }
+      `}</style>
       <div className={cn(
         'flex items-center justify-between gap-3 border-b border-white/10 bg-[#06070c]/95 px-3 py-2 sm:px-5',
         isFullscreen && 'hidden'
       )}>
         <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-white/45">
-          <Shield size={14} className="text-accent" />
-          Ad-light stream
+          <Radio size={14} className="text-accent" />
+          Working-first stream
           <span className={cn(
             'inline-flex items-center gap-1 rounded-full border px-2 py-1 tracking-normal',
             activeProvider.adRisk === 'low'
@@ -552,6 +630,10 @@ export function VideoPlayer({
           )}>
             {activeProvider.adRisk === 'high' ? <ShieldAlert size={12} /> : <BadgeCheck size={12} />}
             {activeProvider.qualityLabel}
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 tracking-normal text-white/48">
+            <Gauge size={12} />
+            {activeProvider.expectedQuality}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -571,8 +653,8 @@ export function VideoPlayer({
       </div>
 
       <div className={cn(
-        'relative flex aspect-video w-full min-h-[260px] items-center justify-center overflow-hidden bg-black group lg:min-h-[min(760px,70vh)]',
-        isFullscreen && 'h-screen min-h-0 aspect-auto lg:min-h-0'
+        'relative flex aspect-video w-full min-h-[220px] items-center justify-center overflow-hidden bg-black group sm:min-h-[300px] lg:min-h-0 lg:max-h-[58vh]',
+        isFullscreen && 'h-[100dvh] w-[100dvw] min-h-0 max-h-none aspect-auto lg:min-h-0 lg:max-h-none'
       )}>
         <div className="absolute z-0 text-sm font-medium text-white/30 animate-pulse">
           {connectionStatus === 'failed' ? 'No stream connected.' : `Checking ${activeProvider.label}...`}
@@ -586,10 +668,7 @@ export function VideoPlayer({
           allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
           onLoad={() => {
             iframeLoaded.current = true;
-            if (!sourceLoadReported.current) {
-              sourceLoadReported.current = true;
-              reportCurrentSourceEvent('load');
-            }
+            reportCurrentSourceEvent('load', { note: 'iframe_loaded_only_not_playback_confirmation' });
             setConnectionStatus('ready');
           }}
           onError={() => {
@@ -599,28 +678,66 @@ export function VideoPlayer({
           }}
         />
 
-        {activeProvider.warning && (
+        {(failoverNotice || connectionStatus === 'failed') && (!isFullscreen || fullscreenControlsVisible) && (
           <div className={cn(
-            'absolute left-4 top-4 z-20 max-w-md rounded-xl border p-3 text-xs font-semibold shadow-2xl backdrop-blur-xl',
-            activeProvider.hasAds
-              ? 'border-red-300/20 bg-red-950/75 text-red-50/80'
-              : 'border-yellow-300/20 bg-black/75 text-yellow-50/80'
+            'absolute left-4 z-20 max-w-md rounded-xl border border-white/10 bg-black/75 p-3 text-xs font-semibold text-white/70 shadow-2xl backdrop-blur-xl',
+            isFullscreen ? 'top-20' : 'top-4'
           )}>
             <div className="flex items-start gap-2">
-              <AlertTriangle size={15} className="mt-0.5 shrink-0 text-yellow-300" />
-              <span>{activeProvider.warning}</span>
+              <ShieldAlert size={15} className="mt-0.5 shrink-0 text-yellow-300" />
+              <span>{failoverNotice}</span>
             </div>
           </div>
         )}
 
-        {(failoverNotice || connectionStatus === 'failed') && (
-          <div className={cn(
-            'absolute left-4 z-20 max-w-md rounded-xl border border-white/10 bg-black/75 p-3 text-xs font-semibold text-white/70 shadow-2xl backdrop-blur-xl',
-            activeProvider.warning ? 'top-20' : 'top-4'
-          )}>
-            <div className="flex items-start gap-2">
-              <AlertTriangle size={15} className="mt-0.5 shrink-0 text-yellow-300" />
-              <span>{failoverNotice}</span>
+        {isFullscreen && (
+          <div
+            className={cn(
+              'pointer-events-none absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-black/82 via-black/38 to-transparent px-4 pb-14 pt-4 transition-opacity duration-300 sm:px-6',
+              fullscreenControlsVisible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'
+            )}
+          >
+            <div className="pointer-events-auto flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/42">
+                  StreamVault Player
+                </p>
+                <h2 className="mt-1 truncate text-lg font-black text-white sm:text-2xl">
+                  {title || `${type === 'show' ? 'TV' : 'Movie'} ${tmdbId}`}
+                </h2>
+                <p className="mt-1 text-xs font-bold text-white/48">
+                  {activeProvider.label}
+                  {activeProvider.urls.length > 1 ? ` - attempt ${attemptIndex + 1}/${activeProvider.urls.length}` : ''}
+                  {' - '}
+                  {connectionStatus === 'ready' ? 'server opened' : connectionStatus === 'failed' ? 'not connected' : 'connecting'}
+                </p>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  onClick={handleTryNext}
+                  className="hidden items-center gap-2 rounded-full border border-white/15 bg-black/62 px-4 py-2 text-xs font-black text-white shadow-2xl backdrop-blur-xl transition hover:bg-white/12 sm:inline-flex"
+                >
+                  <RefreshCw size={14} />
+                  Try next
+                </button>
+                <button
+                  onClick={handleReportBroken}
+                  className="hidden items-center gap-2 rounded-full border border-white/15 bg-black/62 px-4 py-2 text-xs font-black text-white shadow-2xl backdrop-blur-xl transition hover:bg-white/12 sm:inline-flex"
+                >
+                  <ShieldAlert size={14} />
+                  Not playing
+                </button>
+                <button
+                  onClick={toggleFullscreen}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white px-4 py-2 text-xs font-black text-black shadow-2xl transition hover:bg-slate-200"
+                  title="Exit fullscreen"
+                >
+                  <Minimize2 size={15} />
+                  <span className="hidden sm:inline">Exit fullscreen</span>
+                  <span className="sm:hidden">Exit</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -635,25 +752,33 @@ export function VideoPlayer({
           <div>
             <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/35">
               <Gauge size={13} className="text-[#9ee493]" />
-              Clean-first servers
+              Working-first servers
             </p>
             <p className="mt-1 text-xs text-white/35">
-              StreamVault starts with ad-light sources, then falls back only when needed.
+              StreamVault starts with the servers users say actually play, then falls back automatically when a source fails.
+              Quality is controlled by the external server; add a verified 1080p provider to unlock a true HD-first lane.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
             <p className="text-xs text-white/35">
               {activeProvider.label}
               {activeProvider.urls.length > 1 ? ` attempt ${attemptIndex + 1}/${activeProvider.urls.length}` : ''}
-              {activeReliability?.isGoodForTitle ? ' · worked here before' : ''}
-              {activeReliability?.isBadForTitle ? ' · previously reported broken' : ''}
+              {confirmedSources[activeProvider.id] ? ' - confirmed playing' : ''}
+              {activeReliability?.isBadForTitle ? ' - previously reported broken' : ''}
             </p>
+            <button
+              onClick={handleConfirmWorking}
+              className="inline-flex items-center gap-1.5 rounded-full border border-green-300/15 bg-green-300/7 px-3 py-2 text-xs font-black text-green-100/80 transition hover:border-green-300/30 hover:bg-green-300/12"
+            >
+              <ThumbsUp size={13} />
+              It plays
+            </button>
             <button
               onClick={handleReportBroken}
               className="inline-flex items-center gap-1.5 rounded-full border border-red-300/15 bg-red-300/5 px-3 py-2 text-xs font-black text-red-100/75 transition hover:border-red-300/30 hover:bg-red-300/10"
             >
-              <AlertTriangle size={13} />
-              Report broken
+              <ShieldAlert size={13} />
+              Not playing
             </button>
             {hasNext && (
               <button
@@ -676,7 +801,7 @@ export function VideoPlayer({
                 key={provider.id}
                 onClick={() => selectProvider(provider.id)}
                 className={cn(
-                  'min-h-[74px] rounded-xl border px-3 py-2 text-left transition',
+                  'min-h-[86px] rounded-xl border px-3 py-2 text-left transition',
                   sourceTone(provider, activeSource === provider.id),
                   reliability?.isBadForTitle && activeSource !== provider.id && 'border-red-300/20 bg-red-950/10'
                 )}
@@ -691,9 +816,10 @@ export function VideoPlayer({
                 </span>
                 <span className="mt-1 block truncate text-[11px] font-bold text-white/78">{provider.label}</span>
                 <span className="mt-0.5 block truncate text-[10px] font-semibold text-white/35">{provider.groupLabel}</span>
-                {reliability?.isGoodForTitle && (
+                <span className="mt-0.5 block truncate text-[10px] font-semibold text-white/28">{provider.expectedQuality}</span>
+                {confirmedSources[provider.id] && (
                   <span className="mt-1 inline-flex rounded-full bg-green-300/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-green-100/70">
-                    Works here
+                    Confirmed
                   </span>
                 )}
                 {reliability?.isBadForTitle && (

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-type SourceEventType = 'attempt' | 'load' | 'timeout' | 'error' | 'manual_next' | 'selected' | 'reported_broken';
+type SourceEventType = 'attempt' | 'load' | 'confirmed_working' | 'timeout' | 'error' | 'manual_next' | 'selected' | 'reported_broken';
 
 type SourceEventBody = {
   tmdbId?: unknown;
@@ -22,6 +22,7 @@ type SourceEventBody = {
 const VALID_EVENTS = new Set<SourceEventType>([
   'attempt',
   'load',
+  'confirmed_working',
   'timeout',
   'error',
   'manual_next',
@@ -29,7 +30,7 @@ const VALID_EVENTS = new Set<SourceEventType>([
   'reported_broken',
 ]);
 
-const SUCCESS_EVENTS = new Set<SourceEventType>(['load']);
+const SUCCESS_EVENTS = new Set<SourceEventType>(['confirmed_working']);
 const FAILURE_EVENTS = new Set<SourceEventType>(['timeout', 'error', 'manual_next', 'reported_broken']);
 
 function cleanText(value: unknown) {

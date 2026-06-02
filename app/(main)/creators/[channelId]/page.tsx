@@ -4,6 +4,7 @@ import { ArrowLeft, Clapperboard, Clock, Database, EyeOff } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getSeedCreator } from '@/lib/youtube/creator-catalogue';
+import { hasYouTubeProvider } from '@/lib/youtube/api';
 import { getCreatorByChannelId, getCreatorVideos, getUnseenVideosFromCreator } from '@/lib/youtube/creators';
 import type { YouTubeCreator } from '@/lib/youtube/types';
 import { CreatorFollowButton } from '@/components/creators/creator-follow-button';
@@ -70,6 +71,7 @@ export default async function CreatorDetailPage({
   }
 
   const primaryVideos = unseenVideos.length ? unseenVideos : allVideos;
+  const canAutoIndex = hasYouTubeProvider() && allVideos.length === 0;
 
   return (
     <div className="min-h-screen pb-24">
@@ -103,7 +105,7 @@ export default async function CreatorDetailPage({
 
             <div className="flex flex-wrap gap-2">
               {user && <CreatorFollowButton channelId={channelId} initialFollowing={Boolean(follow)} />}
-              <CreatorIndexButton channelId={channelId} />
+              <CreatorIndexButton channelId={channelId} autoStart={canAutoIndex} />
             </div>
           </div>
 
@@ -148,9 +150,13 @@ export default async function CreatorDetailPage({
 
         {primaryVideos.length === 0 && (
           <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-8">
-            <h2 className="text-xl font-black text-white">No videos indexed yet</h2>
+            <h2 className="text-xl font-black text-white">
+              {canAutoIndex ? 'Building this creator catalogue...' : 'No videos indexed yet'}
+            </h2>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/45">
-              Use the index endpoint after adding `YOUTUBE_API_KEY`. StreamVault will fetch official uploads, durations, thumbnails, and make them available for unseen-first browsing.
+              {canAutoIndex
+                ? 'StreamVault is fetching official uploads, durations, thumbnails, and watch-ready metadata. The page will refresh when indexing completes.'
+                : 'Add YOUTUBE_API_KEY so StreamVault can fetch official uploads, durations, thumbnails, and make them available for unseen-first browsing.'}
             </p>
           </div>
         )}

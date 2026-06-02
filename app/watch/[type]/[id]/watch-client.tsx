@@ -185,7 +185,7 @@ export function WatchClient({ id, type, details, initialSeasonData }: WatchClien
         )}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(37,99,235,0.28),transparent_38%),linear-gradient(180deg,rgba(0,0,0,0.55),#020308_88%)]" />
 
-        <div className="relative z-10 mx-auto w-full max-w-[1920px] px-0 pb-6 pt-20 sm:px-6 lg:px-10">
+        <div className="relative z-10 mx-auto w-full max-w-6xl px-0 pb-6 pt-20 sm:px-6 lg:px-10">
           <div className="relative mx-auto w-full overflow-hidden bg-black shadow-[0_40px_140px_rgba(0,0,0,0.85)] sm:rounded-2xl sm:border sm:border-white/10">
             <VideoPlayer
               tmdbId={id}
