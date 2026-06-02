@@ -1,26 +1,263 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
+  --color-text: var(--color-text);
+  --color-muted: var(--color-muted);
+  --color-border: var(--color-border);
+  --color-success: var(--color-success);
+  --color-danger: var(--color-danger);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ═══════════════════════════════════════════════════
+   ALL 12 THEMES — Applied via data-theme on <html>
+   ═══════════════════════════════════════════════════ */
+
+/* 1. MIDNIGHT (default) */
+:root, [data-theme="midnight"] {
+  --color-bg: #080d1a;
+  --color-surface: #0f1729;
+  --color-accent: #3b82f6;
+  --color-accent-hover: #2563eb;
+  --color-text: #e2e8f0;
+  --color-muted: #64748b;
+  --color-border: #1e293b;
+  --color-success: #10b981;
+  --color-danger: #ef4444;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* 2. AMOLED */
+[data-theme="amoled"] {
+  --color-bg: #000000;
+  --color-surface: #0a0a0a;
+  --color-accent: #00ff88;
+  --color-accent-hover: #00cc6a;
+  --color-text: #ffffff;
+  --color-muted: #666666;
+  --color-border: #1a1a1a;
+  --color-success: #00ff88;
+  --color-danger: #ff3b30;
+}
+
+/* 3. CRIMSON */
+[data-theme="crimson"] {
+  --color-bg: #0d0608;
+  --color-surface: #1a0810;
+  --color-accent: #dc2626;
+  --color-accent-hover: #b91c1c;
+  --color-text: #fef2f2;
+  --color-muted: #9f7070;
+  --color-border: #3b1015;
+  --color-success: #10b981;
+  --color-danger: #ff6b6b;
+}
+
+/* 4. OBSIDIAN */
+[data-theme="obsidian"] {
+  --color-bg: #0c0b0f;
+  --color-surface: #16141d;
+  --color-accent: #8b5cf6;
+  --color-accent-hover: #7c3aed;
+  --color-text: #ede9fe;
+  --color-muted: #6d5f8a;
+  --color-border: #2d2640;
+  --color-success: #10b981;
+  --color-danger: #ef4444;
+}
+
+/* 5. ARCTIC (light) */
+[data-theme="arctic"] {
+  --color-bg: #f0f4ff;
+  --color-surface: #ffffff;
+  --color-accent: #1d4ed8;
+  --color-accent-hover: #1e3a8a;
+  --color-text: #0f172a;
+  --color-muted: #64748b;
+  --color-border: #cbd5e1;
+  --color-success: #059669;
+  --color-danger: #dc2626;
+}
+
+/* 6. SAKURA (light) */
+[data-theme="sakura"] {
+  --color-bg: #fff5f7;
+  --color-surface: #ffffff;
+  --color-accent: #ec4899;
+  --color-accent-hover: #db2777;
+  --color-text: #1e1b1d;
+  --color-muted: #9d6b7a;
+  --color-border: #fce7f3;
+  --color-success: #059669;
+  --color-danger: #dc2626;
+}
+
+/* 7. FOREST */
+[data-theme="forest"] {
+  --color-bg: #050e08;
+  --color-surface: #0d1f12;
+  --color-accent: #22c55e;
+  --color-accent-hover: #16a34a;
+  --color-text: #dcfce7;
+  --color-muted: #4a7c59;
+  --color-border: #14532d;
+  --color-success: #22c55e;
+  --color-danger: #ef4444;
+}
+
+/* 8. AMBER */
+[data-theme="amber"] {
+  --color-bg: #0d0800;
+  --color-surface: #1a1200;
+  --color-accent: #f59e0b;
+  --color-accent-hover: #d97706;
+  --color-text: #fef3c7;
+  --color-muted: #78614a;
+  --color-border: #3b2800;
+  --color-success: #10b981;
+  --color-danger: #ef4444;
+}
+
+/* 9. SLATE */
+[data-theme="slate"] {
+  --color-bg: #0f172a;
+  --color-surface: #1e293b;
+  --color-accent: #94a3b8;
+  --color-accent-hover: #cbd5e1;
+  --color-text: #f1f5f9;
+  --color-muted: #475569;
+  --color-border: #334155;
+  --color-success: #10b981;
+  --color-danger: #ef4444;
+}
+
+/* 10. ROSE GOLD */
+[data-theme="rose-gold"] {
+  --color-bg: #1a0f0f;
+  --color-surface: #2d1a1a;
+  --color-accent: #f43f5e;
+  --color-accent-hover: #e11d48;
+  --color-text: #fff1f2;
+  --color-muted: #8b5060;
+  --color-border: #4c2030;
+  --color-success: #10b981;
+  --color-danger: #ff6b6b;
+}
+
+/* 11. CYBERPUNK */
+[data-theme="cyberpunk"] {
+  --color-bg: #05050a;
+  --color-surface: #0d0d1a;
+  --color-accent: #fde047;
+  --color-accent-hover: #facc15;
+  --color-text: #fefce8;
+  --color-muted: #67e8f9;
+  --color-border: #1a1a2e;
+  --color-success: #39ff14;
+  --color-danger: #ff003c;
+}
+
+/* 12. FILM */
+[data-theme="film"] {
+  --color-bg: #0d0a07;
+  --color-surface: #1a1408;
+  --color-accent: #d97706;
+  --color-accent-hover: #b45309;
+  --color-text: #fef3c7;
+  --color-muted: #7a6040;
+  --color-border: #3b2e18;
+  --color-success: #10b981;
+  --color-danger: #ef4444;
+}
+
+/* ═══════════════════════════════════════════════════
+   BASE LAYER
+   ═══════════════════════════════════════════════════ */
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+    transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ═══════════════════════════════════════════════════
+   CUSTOM SCROLLBARS — premium thin design
+   ═══════════════════════════════════════════════════ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.08) transparent;
+}
+
+/* ═══════════════════════════════════════════════════
+   SHIMMER — used by ContentCard loading skeleton
+   ═══════════════════════════════════════════════════ */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+@keyframes vault-scan {
+  0%   { transform: translateX(-120%); opacity: 0.35; }
+  45%  { opacity: 1; }
+  100% { transform: translateX(220%); opacity: 0.35; }
+}
+
+@keyframes vault-node {
+  0%, 100% {
+    border-color: rgba(255,255,255,0.10);
+    background: #111522;
+    color: rgba(255,255,255,0.50);
+    box-shadow: 0 8px 26px rgba(0,0,0,0.28);
+  }
+  42% {
+    border-color: rgba(158,228,147,0.44);
+    background: rgba(158,228,147,0.12);
+    color: #9ee493;
+    box-shadow: 0 0 24px rgba(158,228,147,0.20);
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
 }

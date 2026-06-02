@@ -1,0 +1,12 @@
+export type { ExternalMetadata, EnrichmentResult, MetadataSource } from './types';
+export { METADATA_SOURCES } from './types';
+export type { PipelineOptions } from './pipeline';
+export { enrichContent, syncContentMetadata } from './pipeline';
+export { enrichFromTVDb } from './sources/tvdb';
+export { enrichFromAniList } from './sources/anilist';
+export { enrichFromMusicBrainz } from './sources/musicbrainz';
+export { enrichFromWikidata } from './sources/wikidata';
+export { enrichFromFanart } from './sources/fanart';
+export { enrichFromJustWatch } from './sources/justwatch';
+export { enrichFromCommunity, submitCommunityRating } from './sources/community';
+export { enrichFromLetterboxdStyle } from './sources/letterboxd';
